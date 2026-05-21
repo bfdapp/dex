@@ -3,338 +3,487 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
-<title>BF 去中心化兑换</title>
+<title>BF 双向链上兑换</title>
+<link rel="icon" href="favicon.ico">
 <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
 <style>
-*{margin:0;padding:0;box-sizing:border-box;font-family:system-ui, sans-serif;}
-body{background:#e6f0ff;padding:30px 15px;color:#333;}
-.swap-container{max-width:440px;margin:0 auto;}
-.swap-box{background:#fff;border-radius:24px;padding:24px;border:1px solid #e0e0e0;box-shadow:0 4px 12px rgba(0,0,0,0.05);}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{
+    background:#0b1224;
+    padding:25px 16px;
+    font-family:Microsoft Yahei,sans-serif;
+}
+.trade-container{
+    max-width:480px;
+    margin:0 auto;
+}
+.trade-tit{
+    text-align:center;
+    font-size:18px;
+    color:#ffd250;
+    font-weight:600;
+    margin-bottom:20px;
+}
+.tab-box{
+    display:flex;
+    gap:8px;
+    margin-bottom:15px;
+}
+.tab-item{
+    flex:1;
+    text-align:center;
+    padding:12px 0;
+    border-radius:10px;
+    background:#161e33;
+    color:#999;
+    font-size:15px;
+    cursor:pointer;
+}
+.tab-item.active{
+    background:linear-gradient(90deg,#27c707,#1a9c5c);
+    color:#fff;
+}
+.swap-box{
+    background:rgba(255,255,255,0.08);
+    border-radius:16px;
+    padding:20px;
+    border:1px solid rgba(255,210,80,0.2);
+}
+.input-item{
+    margin-bottom:15px;
+}
+.input-item label{
+    display:block;
+    color:#ccc;
+    font-size:14px;
+    margin-bottom:6px;
+}
+.input-item input{
+    width:100%;
+    padding:14px;
+    border-radius:10px;
+    border:none;
+    background:#161e33;
+    color:#fff;
+    font-size:15px;
+    outline:none;
+}
+.swap-btn{
+    width:100%;
+    padding:15px;
+    border:none;
+    border-radius:10px;
+    background:linear-gradient(90deg,#27c707,#1a9c5c);
+    color:#fff;
+    font-size:16px;
+    font-weight:bold;
+    cursor:pointer;
+    margin-top:10px;
+}
+.wallet-btn{
+    width:100%;
+    padding:13px;
+    border:none;
+    border-radius:10px;
+    background:linear-gradient(90deg,#407bff,#2554d1);
+    color:#fff;
+    font-size:15px;
+    cursor:pointer;
+    margin-bottom:10px;
+}
+.home-btn{
+    width:100%;
+    padding:12px;
+    border:none;
+    border-radius:10px;
+    background:#6c757d;
+    color:#fff;
+    font-size:15px;
+    cursor:pointer;
+    margin-bottom:15px;
+}
+.status{
+    text-align:center;
+    font-size:13px;
+    color:#94a3b8;
+    margin:12px 0;
+}
+.balance-box{
+    background:rgba(255,210,80,0.1);
+    border-radius:10px;
+    padding:10px;
+    text-align:center;
+    font-size:14px;
+    color:#eee;
+    margin-bottom:15px;
+}
+.price-box{
+    text-align:center;
+    color:#ffd250;
+    margin-bottom:10px;
+    font-size:14px;
+}
+.hide{display:none;}
+.pct-btn {
+    padding:6px 12px;
+    border-radius:6px;
+    border:none;
+    background:#161e33;
+    color:#999;
+    font-size:14px;
+    cursor:pointer;
+}
+.pct-btn.active {
+    background:#27c707;
+    color:#fff;
+}
 
-.wallet-line{display:flex;justify-content:space-between;margin-bottom:20px;}
-.connect-btn{background:#407bff;color:#fff;border:none;padding:10px 16px;border-radius:10px;font-weight:600;cursor:pointer;}
-.home-btn{background:#e0e0e0;color:#333;border:none;padding:10px 14px;border-radius:10px;cursor:pointer;}
-
-.token-card{background:#f8f9ff;border-radius:20px;padding:20px;margin-bottom:12px;}
-.token-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
-.token-left{display:flex;align-items:center;gap:10px;cursor:pointer;}
-.token-icon{width:36px;height:36px;border-radius:50%;object-fit:cover;}
-.token-name{font-size:20px;font-weight:600;color:#333;}
-.token-chain{font-size:14px;color:#666;margin-top:4px;}
-.token-balance{font-size:14px;color:#666;}
-.num-input{width:100%;background:transparent;border:none;outline:none;color:#333;font-size:32px;text-align:right;font-weight:600;}
-.num-input:read-only{color:#999;}
-
-.switch-btn{text-align:center;font-size:28px;color:#407bff;margin:10px 0;cursor:pointer;}
-
-.slippage-box{display:flex;align-items:center;gap:10px;margin:20px 0;}
-.slippage-input{width:60px;background:#f0f0f0;border:none;color:#333;padding:8px;border-radius:8px;text-align:center;}
-.swap-btn{width:100%;background:#26ac75;color:#fff;border:none;padding:16px;border-radius:16px;font-size:16px;font-weight:600;cursor:pointer;margin-top:8px;}
-
-.token-modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:999;}
-.token-modal-content{background:#fff;border-radius:20px;padding:24px;width:90%;max-width:400px;}
-.token-search{width:100%;padding:12px;border-radius:10px;border:1px solid #e0e0e0;margin-bottom:16px;outline:none;}
-.token-item-modal{display:flex;align-items:center;gap:10px;padding:12px;border-radius:10px;cursor:pointer;}
-.token-item-modal:hover{background:#f0f0f0;}
-.close-modal{text-align:right;}
-
-.wallet-modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:999;}
-.wallet-modal-content{background:#fff;border-radius:20px;padding:24px;width:90%;max-width:400px;}
-.wallet-item{display:flex;align-items:center;gap:12px;background:#f0f0f0;padding:12px 16px;border-radius:12px;cursor:pointer;}
-.wallet-item:hover{background:#407bff;color:#fff;}
+/* === 仅新增：代币搜索样式 不影响原有布局 === */
+.token-search-box{
+    background:#161e33;
+    border-radius:10px;
+    padding:12px 14px;
+    margin-bottom:12px;
+    color:#fff;
+    border:1px solid #27c707;
+}
+.token-search-input{
+    width:100%;
+    background:transparent;
+    border:none;
+    color:#fff;
+    outline:none;
+    font-size:14px;
+}
+.current-token{
+    color:#27c707;
+    font-size:13px;
+    margin-top:6px;
+}
 </style>
 </head>
-
 <body>
-<div class="swap-container">
-  <div class="swap-box">
-    <div class="wallet-line">
-      <button class="home-btn" onclick="location.href='index.html'">🏠 首页</button>
-      <button class="connect-btn" id="connectBtn">连接钱包</button>
+<div class="trade-container">
+    <h3 class="trade-tit">BNB ↔ 代币 双向链上兑换</h3>
+
+    <button class="home-btn" id="homeBtn">返回主页</button>
+    <button class="wallet-btn" id="connectBtn">连接BSC钱包</button>
+    <div class="status" id="walletStatus">未连接钱包</div>
+
+    <!-- === 仅新增：代币搜索框 === -->
+    <div class="token-search-box">
+        <input class="token-search-input" id="tokenSearch" placeholder="粘贴代币合约地址切换交易对">
+        <div class="current-token" id="currentToken">当前交易：BF</div>
     </div>
 
-    <div class="token-card">
-      <div class="token-top">
-        <div class="token-left" onclick="openSelect('sell')">
-          <img id="sellIcon" class="token-icon">
-          <div><div class="token-name" id="sellSymbol">BNB</div><div class="token-chain">BNB Chain</div></div>
+    <div class="balance-box" id="balanceBox" style="display:none;">
+        BNB余额：<span id="bnbBalance">0.0000</span> &nbsp;&nbsp;
+        代币余额：<span id="tokenBalance">0.00</span>
+    </div>
+
+    <div class="price-box" id="realPrice">实时价格：加载中...</div>
+
+    <div class="tab-box">
+        <div class="tab-item active" id="buyTab">BNB买代币</div>
+        <div class="tab-item" id="sellTab">代币卖BNB</div>
+    </div>
+
+    <div class="swap-box" id="buyBox">
+        <div class="input-item">
+            <label>支付 BNB 数量</label>
+            <input type="number" id="payBnb" placeholder="输入BNB数量" min="0" step="0.0001">
         </div>
-        <div class="token-balance">余额: <span id="sellBal">0.00</span></div>
-      </div>
-      <input type="number" class="num-input" id="sellAmount" placeholder="0.0">
-    </div>
-
-    <div class="switch-btn" onclick="reverseTokens()">↓</div>
-
-    <div class="token-card">
-      <div class="token-top">
-        <div class="token-left" onclick="openSelect('buy')">
-          <img id="buyIcon" class="token-icon">
-          <div><div class="token-name" id="buySymbol">USDT</div><div class="token-chain">BNB Chain</div></div>
+        <div class="input-item">
+            <label>预估获得 代币</label>
+            <input type="text" id="getToken" placeholder="自动计算" readonly>
         </div>
-        <div class="token-balance">余额: <span id="buyBal">0.00</span></div>
-      </div>
-      <input type="text" class="num-input" id="buyAmount" readonly>
+        <button class="swap-btn" id="buyBtn">确认买入代币</button>
     </div>
 
-    <div class="slippage-box">
-      <span>滑点</span>
-      <input class="slippage-input" id="slippage" value="30" type="number">
-      <span>%</span>
+    <div class="swap-box hide" id="sellBox">
+        <div style="display:flex;justify-content:flex-end;gap:10px;margin-bottom:15px;">
+            <button class="pct-btn" data-pct="25">25%</button>
+            <button class="pct-btn" data-pct="50">50%</button>
+            <button class="pct-btn active" data-pct="100">MAX</button>
+        </div>
+
+        <div class="input-item">
+            <label>卖出 代币 数量</label>
+            <input type="number" id="payToken" placeholder="输入代币数量" min="0" step="0.0001">
+        </div>
+
+        <div class="input-item">
+            <label>滑点设置（建议 25%）</label>
+            <input type="number" id="slippage" value="25" placeholder="滑点%" min="1" max="99">
+        </div>
+
+        <div class="input-item">
+            <label>预估获得 BNB</label>
+            <input type="text" id="getBnb" placeholder="自动计算" readonly>
+        </div>
+        <button class="swap-btn" id="sellBtn">确认卖出代币</button>
     </div>
-
-    <button class="swap-btn" id="swapBtn">确认兑换</button>
-  </div>
-</div>
-
-<div class="token-modal" id="tokenModal" style="display:none;">
-  <div class="token-modal-content">
-    <div style="text-align:right"><button onclick="closeSelect()" style="background:none;border:none;font-size:18px;cursor:pointer">×</button></div>
-    <input class="token-search" id="searchInput" placeholder="搜索合约地址">
-    <div id="tokenList"></div>
-  </div>
-</div>
-
-<div class="wallet-modal" id="walletModal" style="display:none;">
-  <div class="wallet-modal-content">
-    <div style="text-align:right"><button onclick="closeWalletModal()" style="background:none;border:none;font-size:18px;cursor:pointer">×</button></div>
-    <div style="text-align:center;margin-bottom:16px;font-weight:bold">选择钱包</div>
-    <div class="wallet-item" onclick="connectWallet()">MetaMask / TP / OKX / Bitget</div>
-  </div>
 </div>
 
 <script>
-// ===================== 核心配置 =====================
-const ROUTER = "0x10ED43C718714eb63d5aA57B78B54704E256024E";
+const BSC_CHAIN_ID = 56;
+const BSC_HEX = "0x38";
+let CURRENT_TOKEN = "0x3A79A34f29347b3A9c3fB75f07281521e7a8aa3C";
+const ROUTER_ADDR = "0x10ED43C718714eb63d5aA57B78B54704E256024E";
 const WBNB = "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c";
-const USDT = "0x55d398326f99059fF775485246999027B3197955";
-const BF = "0x3A79A34f29347b3A9c3fB75f07281521e7a8aa3C";
+const RPC_LIST = [
+    "https://bsc.publicnode.com",
+    "https://rpc.ankr.com/bsc"
+];
 
-// 100% 稳定头像 CDN（来自 PancakeSwap 官方，不会跨域）
-const TOKEN_ICONS = {
-  BNB: "https://assets.pancakeswap.finance/web/images/tokens/BNB.png",
-  USDT: "https://assets.pancakeswap.finance/web/images/tokens/USDT.png",
-  CAKE: "https://assets.pancakeswap.finance/web/images/tokens/CAKE.png",
-  BF: "https://assets.pancakeswap.finance/web/images/tokens/default.png"
-};
+let provider, signer, router, tokenContract;
+
+const homeBtn = document.getElementById("homeBtn");
+const connectBtn = document.getElementById("connectBtn");
+const walletStatus = document.getElementById("walletStatus");
+const balanceBox = document.getElementById("balanceBox");
+const bnbBalance = document.getElementById("bnbBalance");
+const tokenBalance = document.getElementById("tokenBalance");
+const realPrice = document.getElementById("realPrice");
+const payBnb = document.getElementById("payBnb");
+const getToken = document.getElementById("getToken");
+const payToken = document.getElementById("payToken");
+const getBnb = document.getElementById("getBnb");
+const buyBtn = document.getElementById("buyBtn");
+const sellBtn = document.getElementById("sellBtn");
+const buyTab = document.getElementById("buyTab");
+const sellTab = document.getElementById("sellTab");
+const buyBox = document.getElementById("buyBox");
+const sellBox = document.getElementById("sellBox");
+const slippageInput = document.getElementById("slippage");
+const tokenSearch = document.getElementById("tokenSearch");
+const currentToken = document.getElementById("currentToken");
 
 const ROUTER_ABI = [
-  "function getAmountsOut(uint amountIn, address[] calldata path) external view returns (uint[] memory amounts)",
-  "function swapExactETHForTokensSupportingFeeOnTransferTokens(uint amountOutMin, address[] calldata path, address to, uint deadline) external payable returns (uint[] memory amounts)",
-  "function swapExactTokensForETHSupportingFeeOnTransferTokens(uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline) external returns (uint[] memory amounts)"
+    "function getAmountsOut(uint amountIn, address[] calldata path) external view returns (uint[] memory amounts)",
+    "function swapExactETHForTokens(uint amountOutMin, address[] calldata path, address to, uint deadline) external payable returns (uint[] memory amounts)",
+    "function swapExactTokensForETH(uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline) external returns (uint[] memory amounts)",
+    "function swapExactTokensForETHSupportingFeeOnTransferTokens(uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline) external"
 ];
 
-// 默认代币
-const baseTokens = [
-  { symbol: "BNB", addr: WBNB, icon: TOKEN_ICONS.BNB },
-  { symbol: "USDT", addr: USDT, icon: TOKEN_ICONS.USDT },
-  { symbol: "BF", addr: BF, icon: TOKEN_ICONS.BF }
+const BEP20_ABI = [
+    "function balanceOf(address) external view returns (uint)",
+    "function approve(address spender, uint value) external returns (bool)",
+    "function symbol() external view returns (string)"
 ];
 
-// 读取后台代币，并强制替换为稳定头像
-let customTokens = JSON.parse(localStorage.getItem("DEX_DEFAULT_TOKENS") || "[]").map(t => {
-  // 后台上传的头像如果失效，自动替换为默认头像
-  return {
-    symbol: t.symbol,
-    addr: t.addr,
-    icon: t.icon.startsWith("https://") ? t.icon : TOKEN_ICONS.CAKE
-  };
+homeBtn.onclick = function(){
+    window.location.href = "index.html";
+};
+
+buyTab.onclick = () => {
+    buyTab.classList.add("active");
+    sellTab.classList.remove("active");
+    buyBox.classList.remove("hide");
+    sellBox.classList.add("hide");
+};
+sellTab.onclick = () => {
+    sellTab.classList.add("active");
+    buyTab.classList.remove("active");
+    sellBox.classList.remove("hide");
+    buyBox.classList.add("hide");
+};
+
+async function switchBSC() {
+    try {
+        await window.ethereum.request({
+            method: "wallet_addEthereumChain",
+            params: [{
+                chainId: BSC_HEX,
+                chainName: "BSC",
+                nativeCurrency: { name: "BNB", symbol: "BNB", decimals: 18 },
+                rpcUrls: RPC_LIST,
+                blockExplorerUrls: ["https://bscscan.com"]
+            }]
+        });
+    } catch (e) {}
+}
+
+async function getQuote(amountIn, path) {
+    for (const rpc of RPC_LIST) {
+        try {
+            const tempProvider = new ethers.providers.JsonRpcProvider(rpc, BSC_CHAIN_ID);
+            const r = new ethers.Contract(ROUTER_ADDR, ROUTER_ABI, tempProvider);
+            const amt = ethers.utils.parseEther(amountIn.toString());
+            const out = await r.getAmountsOut(amt, path);
+            return ethers.utils.formatUnits(out[1], 18);
+        } catch (e) {
+            continue;
+        }
+    }
+    return "0";
+}
+
+async function refreshPrice() {
+    try {
+        const out = await getQuote(1, [WBNB, CURRENT_TOKEN]);
+        realPrice.innerText = `实时价格：1 BNB = ${parseFloat(out).toFixed(2)} 代币`;
+    } catch(e) {
+        realPrice.innerText = `实时价格：加载失败`;
+    }
+}
+refreshPrice();
+
+payBnb.oninput = async () => {
+    const v = payBnb.value;
+    if (!v || v <= 0) { getToken.value = ""; return; }
+    getToken.value = parseFloat(await getQuote(v, [WBNB, CURRENT_TOKEN])).toFixed(2);
+};
+
+payToken.oninput = async () => {
+    const v = payToken.value;
+    if (!v || v <= 0) { getBnb.value = ""; return; }
+    getBnb.value = parseFloat(await getQuote(v, [CURRENT_TOKEN, WBNB])).toFixed(6);
+};
+
+async function loadBalances(addr) {
+    try {
+        const p = new ethers.providers.JsonRpcProvider(RPC_LIST[0]);
+        const bnb = await p.getBalance(addr);
+        const tok = await new ethers.Contract(CURRENT_TOKEN, BEP20_ABI, p).balanceOf(addr);
+        bnbBalance.innerText = ethers.utils.formatEther(bnb).slice(0, 6);
+        tokenBalance.innerText = ethers.utils.formatUnits(tok, 18).slice(0, 5);
+        balanceBox.style.display = "block";
+    } catch (e) {}
+}
+
+connectBtn.onclick = async () => {
+    if (!window.ethereum) { alert("请安装钱包"); return; }
+    try {
+        await window.ethereum.request({ method: "eth_requestAccounts" });
+        await switchBSC();
+        provider = new ethers.providers.Web3Provider(window.ethereum);
+        signer = provider.getSigner();
+        const addr = await signer.getAddress();
+        walletStatus.innerText = `已连接：${addr.slice(0, 6)}...`;
+        router = new ethers.Contract(ROUTER_ADDR, ROUTER_ABI, signer);
+        tokenContract = new ethers.Contract(CURRENT_TOKEN, BEP20_ABI, signer);
+        loadBalances(addr);
+        refreshPrice();
+    } catch (e) {
+        alert("连接失败：" + e.message);
+    }
+};
+
+buyBtn.onclick = async () => {
+    try {
+        if (!signer) { alert("请连接钱包"); return; }
+        const val = payBnb.value;
+        if (!val || val <= 0) { alert("输入数量"); return; }
+        buyBtn.innerText = "交易中...";
+        const out = await getQuote(val, [WBNB, CURRENT_TOKEN]);
+        const minOut = ethers.utils.parseEther((out * 0.70).toFixed(6));
+        const tx = await router.swapExactETHForTokens(
+            minOut,
+            [WBNB, CURRENT_TOKEN],
+            await signer.getAddress(),
+            Math.floor(Date.now() / 1000) + 600,
+            { value: ethers.utils.parseEther(val) }
+        );
+        alert("已提交：" + tx.hash);
+        await tx.wait();
+        alert("买入成功！");
+        loadBalances(await signer.getAddress());
+    } catch (e) {
+        alert("买入失败：" + e.message);
+    } finally {
+        buyBtn.innerText = "确认买入代币";
+    }
+};
+
+sellBtn.onclick = async () => {
+    if (!signer) return alert("请先连接钱包");
+    const val = Number(payToken.value);
+    if (!val || val <= 0) return alert("请输入正确的代币数量");
+
+    const slippage = Number(slippageInput.value) || 25;
+    const factor = (100 - slippage) / 100;
+
+    sellBtn.innerText = "准备交易...";
+    try {
+        const userAddr = await signer.getAddress();
+        const tokenAmount = ethers.utils.parseUnits(val.toString(), 18);
+
+        sellBtn.innerText = "授权中...";
+        const approveTx = await tokenContract.approve(ROUTER_ADDR, ethers.constants.MaxUint256);
+        await approveTx.wait();
+
+        sellBtn.innerText = "获取报价...";
+        const quote = await getQuote(val, [CURRENT_TOKEN, WBNB]);
+        if (Number(quote) <= 0) throw new Error("无法获取报价");
+        
+        const minBNBOut = ethers.utils.parseEther((Number(quote) * factor).toFixed(8));
+        sellBtn.innerText = "交易中...";
+        const deadline = Math.floor(Date.now() / 1000) + 600;
+        
+        const swapTx = await router.swapExactTokensForETHSupportingFeeOnTransferTokens(
+            tokenAmount,
+            minBNBOut,
+            [CURRENT_TOKEN, WBNB],
+            userAddr,
+            deadline,
+            { gasLimit: 500000 }
+        );
+
+        alert(`交易已提交！\n哈希：${swapTx.hash}`);
+        await swapTx.wait();
+        alert("卖出成功！");
+        await loadBalances(userAddr);
+
+    } catch (err) {
+        console.error(err);
+        let msg = "卖出失败";
+        if (err.message.includes("user rejected")) msg = "已取消交易";
+        if (err.message.includes("INSUFFICIENT_OUTPUT_AMOUNT")) msg = "滑点不足，请调高滑点（建议25%~30%）";
+        alert(msg);
+    } finally {
+        sellBtn.innerText = "确认卖出代币";
+    }
+};
+
+document.querySelectorAll(".pct-btn").forEach(btn => {
+    btn.onclick = async () => {
+        if(!signer) return alert("请先连接钱包");
+        document.querySelectorAll(".pct-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        let pct = parseInt(btn.dataset.pct);
+        let addr = await signer.getAddress();
+        let p = new ethers.providers.JsonRpcProvider(RPC_LIST[0]);
+        let con = new ethers.Contract(CURRENT_TOKEN, BEP20_ABI, p);
+        let bal = await con.balanceOf(addr);
+        let val = parseFloat(ethers.utils.formatEther(bal)) * pct / 100;
+        payToken.value = val.toFixed(4);
+        let q = await getQuote(val, [CURRENT_TOKEN, WBNB]);
+        getBnb.value = parseFloat(q).toFixed(6);
+    }
 });
-let allTokens = [...customTokens, ...baseTokens];
 
-let sellToken = allTokens[0];
-let buyToken = allTokens[1];
-let currentMode = "buy";
-let signer = null;
-let userAddress = null;
-
-// ===================== 初始化 =====================
-updateUI();
-
-// ===================== 代币选择 =====================
-function openSelect(mode) {
-  currentMode = mode;
-  document.getElementById("tokenModal").style.display = "flex";
-  renderTokenList();
-}
-function closeSelect() {
-  document.getElementById("tokenModal").style.display = "none";
-}
-
-function renderTokenList() {
-  let dom = document.getElementById("tokenList");
-  dom.innerHTML = "";
-  allTokens.forEach(t => {
-    let item = document.createElement("div");
-    item.className = "token-item-modal";
-    item.innerHTML = `<img class="token-icon" src="${t.icon}" onerror="this.src='${TOKEN_ICONS.CAKE}'"><div>${t.symbol}</div>`;
-    item.onclick = () => {
-      if (currentMode === "sell") sellToken = t;
-      else buyToken = t;
-      updateUI();
-      closeSelect();
-    };
-    dom.appendChild(item);
-  });
-}
-
-// 搜索代币（自动用默认头像）
-document.getElementById("searchInput").oninput = async () => {
-  let v = document.getElementById("searchInput").value.trim();
-  if (!v.startsWith("0x") || v.length !== 42) return;
-  try {
-    let p = new ethers.providers.JsonRpcProvider("https://bsc-dataseed.binance.org");
-    let c = new ethers.Contract(v, ["function symbol() view returns(string)"], p);
-    let symbol = await c.symbol();
-    let t = { symbol, addr: v, icon: TOKEN_ICONS.CAKE };
-    let item = document.createElement("div");
-    item.className = "token-item-modal";
-    item.innerHTML = `<img class="token-icon" src="${t.icon}"><div>${t.symbol}</div>`;
-    item.onclick = () => {
-      currentMode === "sell" ? sellToken = t : buyToken = t;
-      updateUI(); closeSelect();
-    };
-    document.getElementById("tokenList").appendChild(item);
-  } catch (e) { }
-};
-
-// ===================== 交互 =====================
-function updateUI() {
-  // 头像加载失败时自动替换为默认图标
-  document.getElementById("sellIcon").src = sellToken.icon;
-  document.getElementById("sellIcon").onerror = function() { this.src = TOKEN_ICONS.CAKE; };
-  document.getElementById("buyIcon").src = buyToken.icon;
-  document.getElementById("buyIcon").onerror = function() { this.src = TOKEN_ICONS.CAKE; };
-
-  document.getElementById("sellSymbol").innerText = sellToken.symbol;
-  document.getElementById("buySymbol").innerText = buyToken.symbol;
-  calculate();
-}
-
-function reverseTokens() {
-  [sellToken, buyToken] = [buyToken, sellToken];
-  updateUI();
-}
-
-// 计算兑换数量
-async function calculate() {
-  let val = document.getElementById("sellAmount").value;
-  if (!val || val <= 0) return;
-  try {
-    let p = new ethers.providers.JsonRpcProvider("https://bsc-dataseed.binance.org");
-    let router = new ethers.Contract(ROUTER, ROUTER_ABI, p);
-    let out = await router.getAmountsOut(ethers.utils.parseEther(val), [sellToken.addr, buyToken.addr]);
-    document.getElementById("buyAmount").value = ethers.utils.formatEther(out[1]).slice(0, 8);
-  } catch (e) {
-    document.getElementById("buyAmount").value = "获取失败";
-    console.error("calc error:", e);
-  }
-}
-
-document.getElementById("sellAmount").oninput = calculate;
-
-// ===================== 钱包连接 + 切换 =====================
-document.getElementById("connectBtn").onclick = () => {
-  if (signer) { disconnectWallet(); return; }
-  document.getElementById("walletModal").style.display = "flex";
-};
-function closeWalletModal() { document.getElementById("walletModal").style.display = "none"; }
-
-async function connectWallet() {
-  closeWalletModal();
-  try {
-    await ethereum.request({ method: "eth_requestAccounts" });
-    let p = new ethers.providers.Web3Provider(window.ethereum);
-    signer = p.getSigner();
-    userAddress = await signer.getAddress();
-    document.getElementById("connectBtn").innerText = "切换钱包";
-    loadBalance();
-  } catch (e) { alert("连接失败: " + e.message); }
-}
-
-function disconnectWallet() {
-  signer = null;
-  userAddress = null;
-  document.getElementById("connectBtn").innerText = "连接钱包";
-  alert("已断开钱包");
-}
-
-// 加载余额
-async function loadBalance() {
-  if (!userAddress) return;
-  let p = new ethers.providers.JsonRpcProvider("https://bsc-dataseed.binance.org");
-  try {
-    if (sellToken.addr === WBNB) {
-      let b = await p.getBalance(userAddress);
-      document.getElementById("sellBal").innerText = parseFloat(ethers.utils.formatEther(b)).toFixed(4);
-    } else {
-      let c = new ethers.Contract(sellToken.addr, ["function balanceOf(address) view returns(uint)"], p);
-      let b = await c.balanceOf(userAddress);
-      document.getElementById("sellBal").innerText = parseFloat(ethers.utils.formatEther(b)).toFixed(4);
+// ===================== ✅ 仅新增：粘贴合约搜索代币 =====================
+tokenSearch.onchange = async () => {
+    let addr = tokenSearch.value.trim();
+    if(!addr.startsWith("0x") || addr.length !== 42) return alert("合约地址格式错误");
+    try{
+        let p = new ethers.providers.JsonRpcProvider(RPC_LIST[0]);
+        let c = new ethers.Contract(addr, BEP20_ABI, p);
+        let sym = await c.symbol();
+        CURRENT_TOKEN = addr;
+        currentToken.innerText = `当前交易：${sym} (${addr.slice(0,6)}...)`;
+        tokenSearch.value = "";
+        refreshPrice();
+        if(signer){
+            tokenContract = new ethers.Contract(CURRENT_TOKEN, BEP20_ABI, signer);
+            loadBalances(await signer.getAddress());
+        }
+        alert(`切换成功：${sym}`);
+    }catch(e){
+        alert("无法识别此代币，请检查合约");
     }
-    let c2 = new ethers.Contract(buyToken.addr, ["function balanceOf(address) view returns(uint)"], p);
-    let b2 = await c2.balanceOf(userAddress);
-    document.getElementById("buyBal").innerText = parseFloat(ethers.utils.formatEther(b2)).toFixed(4);
-  } catch (e) { }
-}
-
-// ===================== 兑换核心（100% 修复） =====================
-document.getElementById("swapBtn").onclick = async () => {
-  if (!signer) return alert("请先连接钱包");
-  let val = document.getElementById("sellAmount").value;
-  if (!val || val <= 0) return alert("请输入兑换数量");
-  let slip = parseInt(document.getElementById("slippage").value) || 30;
-
-  try {
-    let router = new ethers.Contract(ROUTER, ROUTER_ABI, signer);
-    let path = [sellToken.addr, buyToken.addr];
-    let amountIn = ethers.utils.parseEther(val);
-
-    // 预获取输出数量，确保滑点正确
-    let amounts = await router.getAmountsOut(amountIn, path);
-    let amountOutMin = amounts[1].mul(100 - slip).div(100);
-    let deadline = Math.floor(Date.now() / 1000) + 60 * 10;
-
-    if (sellToken.addr.toLowerCase() === WBNB.toLowerCase()) {
-      // BNB → 代币
-      await router.swapExactETHForTokensSupportingFeeOnTransferTokens(
-        amountOutMin,
-        path,
-        userAddress,
-        deadline,
-        { value: amountIn, gasLimit: 1000000 }
-      );
-    } else if (buyToken.addr.toLowerCase() === WBNB.toLowerCase()) {
-      // 代币 → BNB
-      let sellContract = new ethers.Contract(sellToken.addr, ["function approve(address,uint) returns(bool)"], signer);
-      await sellContract.approve(ROUTER, ethers.constants.MaxUint256);
-      await router.swapExactTokensForETHSupportingFeeOnTransferTokens(
-        amountIn,
-        amountOutMin,
-        path,
-        userAddress,
-        deadline,
-        { gasLimit: 1000000 }
-      );
-    } else {
-      alert("当前仅支持 BNB ↔ 代币 交易");
-      return;
-    }
-
-    alert("兑换成功 ✅");
-    loadBalance();
-    document.getElementById("sellAmount").value = "";
-    document.getElementById("buyAmount").value = "";
-  } catch (e) {
-    console.error("swap error:", e);
-    alert("兑换失败: " + e.message);
-  }
 };
-
-if (window.ethereum) {
-  ethereum.on("accountsChanged", () => location.reload());
-  ethereum.on("chainChanged", () => location.reload());
-}
 </script>
 </body>
 </html>
