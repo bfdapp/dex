@@ -137,8 +137,6 @@ body{
     background:#27c707;
     color:#fff;
 }
-
-/* === 仅新增：代币搜索样式 不影响原有布局 === */
 .token-search-box{
     background:#161e33;
     border-radius:10px;
@@ -170,7 +168,6 @@ body{
     <button class="wallet-btn" id="connectBtn">连接BSC钱包</button>
     <div class="status" id="walletStatus">未连接钱包</div>
 
-    <!-- === 仅新增：代币搜索框 === -->
     <div class="token-search-box">
         <input class="token-search-input" id="tokenSearch" placeholder="粘贴代币合约地址切换交易对">
         <div class="current-token" id="currentToken">当前交易：BF</div>
@@ -304,6 +301,7 @@ async function switchBSC() {
     } catch (e) {}
 }
 
+// ---------- 修复：getAmountsOut 加容错 ----------
 async function getQuote(amountIn, path) {
     for (const rpc of RPC_LIST) {
         try {
@@ -322,23 +320,38 @@ async function getQuote(amountIn, path) {
 async function refreshPrice() {
     try {
         const out = await getQuote(1, [WBNB, CURRENT_TOKEN]);
-        realPrice.innerText = `实时价格：1 BNB = ${parseFloat(out).toFixed(2)} 代币`;
+        if (parseFloat(out) <= 0) {
+            realPrice.innerText = "实时价格：无流动性或无效代币";
+        } else {
+            realPrice.innerText = `实时价格：1 BNB = ${parseFloat(out).toFixed(2)} 代币`;
+        }
     } catch(e) {
-        realPrice.innerText = `实时价格：加载失败`;
+        realPrice.innerText = "实时价格：获取失败";
     }
 }
 refreshPrice();
 
+// ---------- 修复：输入变化时容错 ----------
 payBnb.oninput = async () => {
     const v = payBnb.value;
     if (!v || v <= 0) { getToken.value = ""; return; }
-    getToken.value = parseFloat(await getQuote(v, [WBNB, CURRENT_TOKEN])).toFixed(2);
+    const q = await getQuote(v, [WBNB, CURRENT_TOKEN]);
+    if (parseFloat(q) <= 0) {
+        getToken.value = "无价格";
+    } else {
+        getToken.value = parseFloat(q).toFixed(2);
+    }
 };
 
 payToken.oninput = async () => {
     const v = payToken.value;
     if (!v || v <= 0) { getBnb.value = ""; return; }
-    getBnb.value = parseFloat(await getQuote(v, [CURRENT_TOKEN, WBNB])).toFixed(6);
+    const q = await getQuote(v, [CURRENT_TOKEN, WBNB]);
+    if (parseFloat(q) <= 0) {
+        getBnb.value = "无价格";
+    } else {
+        getBnb.value = parseFloat(q).toFixed(6);
+    }
 };
 
 async function loadBalances(addr) {
@@ -370,6 +383,7 @@ connectBtn.onclick = async () => {
     }
 };
 
+// ---------- 修复：买入滑点改用滑点输入，和卖出一致 ----------
 buyBtn.onclick = async () => {
     try {
         if (!signer) { alert("请连接钱包"); return; }
@@ -377,7 +391,12 @@ buyBtn.onclick = async () => {
         if (!val || val <= 0) { alert("输入数量"); return; }
         buyBtn.innerText = "交易中...";
         const out = await getQuote(val, [WBNB, CURRENT_TOKEN]);
-        const minOut = ethers.utils.parseEther((out * 0.70).toFixed(6));
+        if (parseFloat(out) <= 0) throw new Error("该代币无流动性，无法买入");
+
+        const slippage = Number(slippageInput.value) || 25;
+        const factor = (100 - slippage) / 100;
+        const minOut = ethers.utils.parseEther((parseFloat(out) * factor).toFixed(6));
+
         const tx = await router.swapExactETHForTokens(
             minOut,
             [WBNB, CURRENT_TOKEN],
@@ -415,7 +434,7 @@ sellBtn.onclick = async () => {
 
         sellBtn.innerText = "获取报价...";
         const quote = await getQuote(val, [CURRENT_TOKEN, WBNB]);
-        if (Number(quote) <= 0) throw new Error("无法获取报价");
+        if (Number(quote) <= 0) throw new Error("该代币无流动性，无法卖出");
         
         const minBNBOut = ethers.utils.parseEther((Number(quote) * factor).toFixed(8));
         sellBtn.innerText = "交易中...";
@@ -463,7 +482,7 @@ document.querySelectorAll(".pct-btn").forEach(btn => {
     }
 });
 
-// ===================== ✅ 仅新增：粘贴合约搜索代币 =====================
+// ---------- 修复：切换代币清空输入、刷新价格 ----------
 tokenSearch.onchange = async () => {
     let addr = tokenSearch.value.trim();
     if(!addr.startsWith("0x") || addr.length !== 42) return alert("合约地址格式错误");
@@ -474,6 +493,13 @@ tokenSearch.onchange = async () => {
         CURRENT_TOKEN = addr;
         currentToken.innerText = `当前交易：${sym} (${addr.slice(0,6)}...)`;
         tokenSearch.value = "";
+
+        // 清空输入，避免残留旧值
+        payBnb.value = "";
+        getToken.value = "";
+        payToken.value = "";
+        getBnb.value = "";
+
         refreshPrice();
         if(signer){
             tokenContract = new ethers.Contract(CURRENT_TOKEN, BEP20_ABI, signer);
@@ -481,7 +507,7 @@ tokenSearch.onchange = async () => {
         }
         alert(`切换成功：${sym}`);
     }catch(e){
-        alert("无法识别此代币，请检查合约");
+        alert("无法识别此代币，请检查合约或链上无该代币");
     }
 };
 </script>
