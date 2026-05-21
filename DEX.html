@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>BF SWAP 兑换中心</title>
+<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:system-ui, sans-serif;}
+body{background:#0b0f1a;padding:30px 15px;color:#fff;}
+.swap-container{max-width:440px;margin:0 auto;}
+.swap-box{background:#161c2a;border-radius:20px;padding:24px;border:1px solid #262c3a;}
+.head-title{font-size:20px;font-weight:600;margin-bottom:20px;color:#ffd250;text-align:center;}
+
+.wallet-line{display:flex;justify-content:space-between;margin-bottom:16px;}
+.connect-btn{background:#26ac75;color:#fff;border:none;padding:10px 16px;border-radius:10px;font-weight:600;cursor:pointer;}
+.home-btn{background:#252b3a;color:#ccc;border:none;padding:10px 14px;border-radius:10px;cursor:pointer;}
+
+.upload-box{display:flex;gap:8px;margin-bottom:12px;}
+#contractInput{flex:1;background:#202735;border:none;outline:none;color:#fff;padding:12px 14px;border-radius:12px;font-size:14px;}
+#uploadIconBtn{background:#252b3a;color:#fff;border:none;padding:12px 10px;border-radius:12px;cursor:pointer;}
+#iconFileInput{display:none;}
+
+.token-list{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px;max-height:110px;overflow-y:auto;padding-right:5px;}
+.token-item{display:flex;align-items:center;gap:8px;background:#252b3a;padding:8px 12px;border-radius:10px;cursor-pointer;white-space:nowrap;}
+.token-item:hover{background:#26ac75;}
+.token-icon{width:24px;height:24px;border-radius:50%;object-fit:cover;}
+.token-name{font-size:14px;color:#fff;font-weight:500;}
+.del-token{color:#ff5555;font-size:12px;margin-left:5px;}
+
+.token-card{background:#202735;border-radius:16px;padding:18px;margin-bottom:12px;}
+.token-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+.token-left{display:flex;align-items:center;gap:10px;}
+.token-balance{font-size:12px;color:#999;}
+.num-input{width:100%;background:transparent;border:none;outline:none;color:#fff;font-size:24px;text-align:right;font-weight:600;}
+
+.switch-btn{text-align:center;font-size:22px;color:#26ac75;margin:8px 0;cursor:pointer;}
+.slippage-box{display:flex;align-items:center;gap:10px;margin:16px 0;}
+.slippage-input{width:60px;background:#202735;border:none;color:#fff;padding:8px;border-radius:8px;text-align:center;}
+.swap-btn{width:100%;background:#26ac75;color:#fff;border:none;padding:16px;border-radius:16px;font-size:16px;font-weight:600;cursor:pointer;margin-top:8px;}
+</style>
+</head>
+
+<body>
+<div class="swap-container">
+  <div class="swap-box">
+    <div class="head-title">BF 去中心化兑换</div>
+    <div class="wallet-line">
+      <button class="home-btn" onclick="location.href='index.html'">🏠 首页</button>
+      <button class="connect-btn" id="connectBtn">连接钱包</button>
+    </div>
+
+    <div class="upload-box">
+      <input id="contractInput" placeholder="输入代币合约地址">
+      <button id="uploadIconBtn">上传头像</button>
+      <input type="file" id="iconFileInput" accept="image/*">
+    </div>
+
+    <div class="token-list" id="tokenList"></div>
+
+    <div class="token-card">
+      <div class="token-top">
+        <div class="token-left">
+          <img id="sellIcon" class="token-icon">
+          <span id="sellSymbol">BNB</span>
+        </div>
+        <div class="token-balance">余额: <span id="sellBal">0.00</span></div>
+      </div>
+      <input type="number" class="num-input" id="sellAmount" placeholder="0.0">
+    </div>
+
+    <div class="switch-btn" onclick="reverseTokens()">⇅</div>
+
+    <div class="token-card">
+      <div class="token-top">
+        <div class="token-left">
+          <img id="buyIcon" class="token-icon">
+          <span id="buySymbol">BF</span>
+        </div>
+        <div class="token-balance">余额: <span id="buyBal">0.00</span></div>
+      </div>
+      <input type="text" class="num-input" id="buyAmount" placeholder="0.0" readonly>
+    </div>
+
+    <div class="slippage-box">
+      <span>滑点</span>
+      <input class="slippage-input" id="slippage" value="25" type="number">
+      <span>%</span>
+    </div>
+
+    <button class="swap-btn" id="swapBtn">确认兑换</button>
+  </div>
+</div>
+
+<script>
+const ROUTER = "0x10ED43C718714eb63d5aA57B78B54704E256024E";
+const WBNB = "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c";
+const BF = "0x3A79A34f29347b3A9c3fB75f07281521e7a8aa3C";
+
+// ✅ 修复：使用 PancakeSwap 官方 CDN 头像（稳定长期有效）
+let defaultTokens = [
+  {
+    name: "BNB",
+    addr: WBNB,
+    icon: "https://assets.pancakeswap.finance/web/images/tokens/BNB.png"
+  },
+  {
+    name: "USDT",
+    addr: "0x55d398326f99059fF775485246999027B3197955",
+    icon: "https://assets.pancakeswap.finance/web/images/tokens/USDT.png"
+  },
+  {
+    name: "CAKE",
+    addr: "0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cA83",
+    icon: "https://assets.pancakeswap.finance/web/images/tokens/CAKE.png"
+  },
+  {
+    name: "BF",
+    addr: BF,
+    icon: "https://p6-flow-imagex-sign.byteimg.com/tos-cn-i-a9rns2rl98/473ca914615742a588b70e35e14f90cc.png"
+  }
+];
+
+let userTokens = JSON.parse(localStorage.getItem("userTokens") || "null") || defaultTokens;
+let sellToken = WBNB, buyToken = BF;
+let sellSym = "BNB", buySym = "BF";
+let sellIcon = defaultTokens[0].icon, buyIcon = defaultTokens[3].icon;
+let signer, userAddr;
+
+function renderTokens(){
+  let list = document.getElementById("tokenList");
+  list.innerHTML = "";
+  userTokens.forEach((t,i)=>{
+    let item = document.createElement("div");
+    item.className = "token-item";
+    item.innerHTML = `<img class="token-icon" src="${t.icon}"><span>${t.name}</span><span class="del-token" data-i="${i}">✕</span>`;
+    item.onclick = (e)=>{
+      if(e.target.classList.contains("del-token")){
+        userTokens.splice(i,1);
+        saveTokens();
+        renderTokens();
+        return;
+      }
+      buyToken = t.addr; buySym = t.name; buyIcon = t.icon;
+      document.getElementById("buySymbol").innerText = buySym;
+      document.getElementById("buyIcon").src = buyIcon;
+      calOut();
+    };
+    list.appendChild(item);
+  });
+}
+
+function saveTokens(){ localStorage.setItem("userTokens", JSON.stringify(userTokens)); }
+
+document.getElementById("uploadIconBtn").onclick = ()=>{
+  document.getElementById("iconFileInput").click();
+};
+
+document.getElementById("iconFileInput").onchange = async (e)=>{
+  let contract = document.getElementById("contractInput").value.trim();
+  if(!contract || !contract.startsWith("0x")) return alert("请先输入正确的代币合约");
+  let file = e.target.files[0];
+  if(!file) return;
+  let reader = new FileReader();
+  reader.onload = (ev)=>{
+    let icon = ev.target.result;
+    let name = prompt("输入代币简称（如：BTC、ETH）：","TOKEN").toUpperCase();
+    if(!name) return;
+    userTokens.unshift({name, addr:contract, icon});
+    saveTokens();
+    renderTokens();
+    document.getElementById("contractInput").value = "";
+  };
+  reader.readAsDataURL(file);
+};
+
+renderTokens();
+document.getElementById("sellIcon").src = sellIcon;
+document.getElementById("buyIcon").src = buyIcon;
+
+function reverseTokens(){
+  [sellToken, buyToken] = [buyToken, sellToken];
+  [sellSym, buySym] = [buySym, sellSym];
+  [sellIcon, buyIcon] = [buyIcon, sellIcon];
+  document.getElementById("sellSymbol").innerText = sellSym;
+  document.getElementById("buySymbol").innerText = buySym;
+  document.getElementById("sellIcon").src = sellIcon;
+  document.getElementById("buyIcon").src = buyIcon;
+  document.getElementById("sellAmount").value = "";
+  document.getElementById("buyAmount").value = "";
+}
+
+async function calOut(){
+  let val = document.getElementById("sellAmount").value;
+  if(!val || val <= 0) return;
+  let p = new ethers.providers.JsonRpcProvider("https://bsc-dataseed.binance.org");
+  let router = new ethers.Contract(ROUTER, ["function getAmountsOut(uint,address[]) view returns(uint[])"], p);
+  let out = await router.getAmountsOut(ethers.utils.parseEther(val), [sellToken, buyToken]);
+  document.getElementById("buyAmount").value = ethers.utils.formatEther(out[1]).slice(0,8);
+}
+document.getElementById("sellAmount").oninput = calOut;
+
+document.getElementById("connectBtn").onclick = async ()=>{
+  await ethereum.request({method:"eth_requestAccounts"});
+  let provider = new ethers.providers.Web3Provider(window.ethereum);
+  signer = provider.getSigner();
+  userAddr = await signer.getAddress();
+  document.getElementById("connectBtn").innerText = "已连接";
+};
+
+document.getElementById("swapBtn").onclick = async ()=>{
+  if(!signer) return alert("请连接钱包");
+  let val = document.getElementById("sellAmount").value;
+  if(!val) return alert("输入数量");
+  let slip = document.getElementById("slippage").value || 25;
+  let router = new ethers.Contract(ROUTER, [
+    "function swapExactETHForTokensSupportingFeeOnTransferTokens(uint,address[],address,uint) payable"
+  ], signer);
+  let path = [sellToken, buyToken];
+  let amounts = await router.getAmountsOut(ethers.utils.parseEther(val), path);
+  let minOut = amounts[1].mul(100 - slip).div(100);
+  await router.swapExactETHForTokensSupportingFeeOnTransferTokens(
+    minOut, path, userAddr, Math.floor(Date.now()/1000)+6000,
+    {value: ethers.utils.parseEther(val), gasLimit: 600000}
+  );
+  alert("兑换成功！");
+};
+</script>
+</body>
+</html>
