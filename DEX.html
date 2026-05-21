@@ -111,6 +111,13 @@ const ROUTER = "0x10ED43C718714eb63d5aA57B78B54704E256024E";
 const WBNB = "0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c";
 const USDT = "0x55d398326f99059fF775485246999027B3197955";
 
+// 关键：完整 Router ABI（包含 getAmountsOut 方法）
+const ROUTER_ABI = [
+  "function getAmountsOut(uint amountIn, address[] calldata path) external view returns (uint[] memory amounts)",
+  "function swapExactETHForTokensSupportingFeeOnTransferTokens(uint amountOutMin, address[] calldata path, address to, uint deadline) external payable returns (uint[] memory amounts)",
+  "function swapExactTokensForETHSupportingFeeOnTransferTokens(uint amountIn, uint amountOutMin, address[] calldata path, address to, uint deadline) external returns (uint[] memory amounts)"
+];
+
 // 默认代币（后台会自动合并）
 const baseTokens = [
   { symbol: "BNB", addr: WBNB, icon: "https://assets.pancakeswap.finance/web/images/tokens/BNB.png" },
@@ -196,10 +203,13 @@ async function calculate() {
   if (!val || val <= 0) return;
   try {
     let p = new ethers.providers.JsonRpcProvider("https://bsc-dataseed.binance.org");
-    let r = new ethers.Contract(ROUTER, ["function getAmountsOut(uint,address[]) view returns(uint[])"], p);
-    let out = await r.getAmountsOut(ethers.utils.parseEther(val), [sellToken.addr, buyToken.addr]);
+    let router = new ethers.Contract(ROUTER, ROUTER_ABI, p);
+    let out = await router.getAmountsOut(ethers.utils.parseEther(val), [sellToken.addr, buyToken.addr]);
     document.getElementById("buyAmount").value = ethers.utils.formatEther(out[1]).slice(0, 8);
-  } catch (e) { }
+  } catch (e) {
+    document.getElementById("buyAmount").value = "获取失败";
+    console.error("calc error:", e);
+  }
 }
 
 document.getElementById("sellAmount").oninput = calculate;
@@ -257,25 +267,37 @@ document.getElementById("swapBtn").onclick = async () => {
   let slip = parseInt(document.getElementById("slippage").value) || 25;
 
   try {
-    let router = new ethers.Contract(ROUTER, [
-      "function swapExactETHForTokensSupportingFeeOnTransferTokens(uint,address[],address,uint) payable"
-    ], signer);
-
+    let router = new ethers.Contract(ROUTER, ROUTER_ABI, signer);
     let path = [sellToken.addr, buyToken.addr];
     let amount = ethers.utils.parseEther(val);
     let out = await router.getAmountsOut(amount, path);
     let minOut = out[1].mul(100 - slip).div(100);
 
-    await router.swapExactETHForTokensSupportingFeeOnTransferTokens(
-      minOut, path, userAddress, Math.floor(Date.now() / 1000) + 600,
-      { value: amount, gasLimit: 800000 }
-    );
+    if (sellToken.addr.toLowerCase() === WBNB.toLowerCase()) {
+      // BNB → 代币
+      await router.swapExactETHForTokensSupportingFeeOnTransferTokens(
+        minOut, path, userAddress, Math.floor(Date.now() / 1000) + 600,
+        { value: amount, gasLimit: 800000 }
+      );
+    } else if (buyToken.addr.toLowerCase() === WBNB.toLowerCase()) {
+      // 代币 → BNB
+      let sellContract = new ethers.Contract(sellToken.addr, ["function approve(address,uint) returns(bool)"], signer);
+      await sellContract.approve(ROUTER, ethers.constants.MaxUint256);
+      await router.swapExactTokensForETHSupportingFeeOnTransferTokens(
+        amount, minOut, path, userAddress, Math.floor(Date.now() / 1000) + 600, { gasLimit: 800000 }
+      );
+    } else {
+      alert("当前仅支持 BNB ↔ 代币 交易");
+      return;
+    }
 
     alert("兑换成功 ✅");
     loadBalance();
+    document.getElementById("sellAmount").value = "";
+    document.getElementById("buyAmount").value = "";
   } catch (e) {
-    console.error(e);
-    alert("兑换失败：" + e.message);
+    console.error("swap error:", e);
+    alert("兑换失败：" + (e.message || "未知错误"));
   }
 };
 </script>
