@@ -175,7 +175,7 @@ body{
 </head>
 <body>
 <div class="trade-container">
-    <h3 class="trade-tit">BNB ↔ 代币 双向链上兑换</h3>
+    <h3 class="trade-tit">BNB ↔ <span id="topSymbol">代币</span> 双向链上兑换</h3>
 
     <button class="home-btn" id="homeBtn">返回主页</button>
     <button class="wallet-btn" id="connectBtn">连接BSC钱包</button>
@@ -189,14 +189,14 @@ body{
 
     <div class="balance-box" id="balanceBox" style="display:none;">
         BNB余额：<span id="bnbBalance">0.0000</span> &nbsp;&nbsp;
-        代币余额：<span id="tokenBalance">0.00</span>
+        <span id="balanceSymbol">代币</span>余额：<span id="tokenBalance">0.00</span>
     </div>
 
     <div class="price-box" id="realPrice">实时价格：加载中...</div>
 
     <div class="tab-box">
-        <div class="tab-item active" id="buyTab">BNB买代币</div>
-        <div class="tab-item" id="sellTab">代币卖BNB</div>
+        <div class="tab-item active" id="buyTab">BNB买<span id="tabBuySymbol">代币</span></div>
+        <div class="tab-item" id="sellTab"><span id="tabSellSymbol">代币</span>卖BNB</div>
     </div>
 
     <div class="swap-box" id="buyBox">
@@ -205,10 +205,10 @@ body{
             <input type="number" id="payBnb" placeholder="输入BNB数量" min="0" step="0.0001">
         </div>
         <div class="input-item">
-            <label>预估获得 代币</label>
+            <label>预估获得 <span id="labelGetToken">代币</span></label>
             <input type="text" id="getToken" placeholder="自动计算" readonly>
         </div>
-        <button class="swap-btn" id="buyBtn">确认买入代币</button>
+        <button class="swap-btn" id="buyBtn">确认买入<span id="btnBuySymbol">代币</span></button>
     </div>
 
     <div class="swap-box hide" id="sellBox">
@@ -219,7 +219,7 @@ body{
         </div>
 
         <div class="input-item">
-            <label>卖出 代币 数量</label>
+            <label>卖出 <span id="labelSellToken">代币</span> 数量</label>
             <input type="number" id="payToken" placeholder="输入代币数量" min="0" step="0.0001">
         </div>
 
@@ -232,7 +232,7 @@ body{
             <label>预估获得 BNB</label>
             <input type="text" id="getBnb" placeholder="自动计算" readonly>
         </div>
-        <button class="swap-btn" id="sellBtn">确认卖出代币</button>
+        <button class="swap-btn" id="sellBtn">确认卖出<span id="btnSellSymbol">代币</span></button>
     </div>
 </div>
 
@@ -285,6 +285,18 @@ const BEP20_ABI = [
     "function symbol() external view returns (string)",
     "function decimals() external view returns (uint8)"
 ];
+
+// 全局更新所有代币名称显示
+function updateAllTokenNames(sym) {
+    document.getElementById("topSymbol").innerText = sym;
+    document.getElementById("balanceSymbol").innerText = sym;
+    document.getElementById("tabBuySymbol").innerText = sym;
+    document.getElementById("tabSellSymbol").innerText = sym;
+    document.getElementById("labelGetToken").innerText = sym;
+    document.getElementById("labelSellToken").innerText = sym;
+    document.getElementById("btnBuySymbol").innerText = sym;
+    document.getElementById("btnSellSymbol").innerText = sym;
+}
 
 homeBtn.onclick = function(){
     window.location.href = "index.html";
@@ -341,6 +353,7 @@ async function refreshPrice() {
         try {
             let c = new ethers.Contract(CURRENT_TOKEN, BEP20_ABI, p);
             sym = await c.symbol();
+            updateAllTokenNames(sym);
         }catch(e){}
 
         if (!res.ok || parseFloat(res.value) <= 0) {
@@ -403,6 +416,10 @@ connectBtn.onclick = async () => {
         walletStatus.innerText = `已连接：${addr.slice(0, 6)}...`;
         router = new ethers.Contract(ROUTER_ADDR, ROUTER_ABI, signer);
         tokenContract = new ethers.Contract(CURRENT_TOKEN, BEP20_ABI, signer);
+        
+        let sym = "代币";
+        try { sym = await tokenContract.symbol(); updateAllTokenNames(sym); } catch(e){}
+        
         loadBalances(addr);
         refreshPrice();
     } catch (e) {
@@ -437,7 +454,13 @@ buyBtn.onclick = async () => {
     } catch (e) {
         alert("买入失败：" + e.message);
     } finally {
-        buyBtn.innerText = "确认买入代币";
+        let sym = "代币";
+        try {
+            let p = new ethers.providers.JsonRpcProvider(RPC_LIST[0]);
+            let c = new ethers.Contract(CURRENT_TOKEN, BEP20_ABI, p);
+            sym = await c.symbol();
+        }catch(e){}
+        buyBtn.innerText = "确认买入"+sym;
     }
 };
 
@@ -487,7 +510,13 @@ sellBtn.onclick = async () => {
         if (err.message.includes("INSUFFICIENT_OUTPUT_AMOUNT")) msg = "滑点不足，请调高滑点（建议25%~30%）";
         alert(msg);
     } finally {
-        sellBtn.innerText = "确认卖出代币";
+        let sym = "代币";
+        try {
+            let p = new ethers.providers.JsonRpcProvider(RPC_LIST[0]);
+            let c = new ethers.Contract(CURRENT_TOKEN, BEP20_ABI, p);
+            sym = await c.symbol();
+        }catch(e){}
+        sellBtn.innerText = "确认卖出"+sym;
     }
 };
 
@@ -525,6 +554,7 @@ confirmTokenBtn.onclick = async () => {
         payToken.value = "";
         getBnb.value = "";
 
+        updateAllTokenNames(sym);
         refreshPrice();
         if(signer){
             tokenContract = new ethers.Contract(CURRENT_TOKEN, BEP20_ABI, signer);
