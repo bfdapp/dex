@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <title>BF 双向链上兑换</title>
 <link rel="icon" href="favicon.ico">
-<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
 body{
-    background:#0b1224;
+    background:#0b1022;
     padding:25px 16px;
     font-family:Microsoft Yahei,sans-serif;
 }
@@ -138,6 +138,9 @@ body{
     color:#fff;
 }
 .token-search-box{
+    display:flex;
+    gap:10px;
+    align-items:center;
     background:#161e33;
     border-radius:10px;
     padding:12px 14px;
@@ -146,12 +149,22 @@ body{
     border:1px solid #27c707;
 }
 .token-search-input{
-    width:100%;
+    flex:1;
     background:transparent;
     border:none;
     color:#fff;
     outline:none;
     font-size:14px;
+}
+.token-confirm-btn{
+    padding:8px 12px;
+    border-radius:8px;
+    border:none;
+    background:#27c707;
+    color:#fff;
+    font-size:14px;
+    cursor:pointer;
+    white-space:nowrap;
 }
 .current-token{
     color:#27c707;
@@ -169,7 +182,8 @@ body{
     <div class="status" id="walletStatus">未连接钱包</div>
 
     <div class="token-search-box">
-        <input class="token-search-input" id="tokenSearch" placeholder="粘贴代币合约地址，自动切换">
+        <input class="token-search-input" id="tokenSearch" placeholder="粘贴代币合约地址">
+        <button class="token-confirm-btn" id="confirmTokenBtn">确认</button>
     </div>
     <div class="current-token" id="currentToken">当前交易：BF</div>
 
@@ -255,6 +269,7 @@ const buyBox = document.getElementById("buyBox");
 const sellBox = document.getElementById("sellBox");
 const slippageInput = document.getElementById("slippage");
 const tokenSearch = document.getElementById("tokenSearch");
+const confirmTokenBtn = document.getElementById("confirmTokenBtn");
 const currentToken = document.getElementById("currentToken");
 
 const ROUTER_ABI = [
@@ -522,8 +537,8 @@ document.querySelectorAll(".pct-btn").forEach(btn => {
     }
 });
 
-// 粘贴完自动切换，不用点确认
-tokenSearch.onchange = async () => {
+// 保留确认按钮，移除切换成功弹窗
+confirmTokenBtn.onclick = async () => {
     let addr = tokenSearch.value.trim();
     if(!addr.startsWith("0x") || addr.length !== 42) return alert("合约地址格式错误");
     try{
@@ -545,7 +560,6 @@ tokenSearch.onchange = async () => {
             tokenContract = new ethers.Contract(CURRENT_TOKEN, BEP20_ABI, signer);
             loadBalances(await signer.getAddress());
         }
-        alert(`切换成功：${sym}`);
     }catch(e){
         alert("无法识别此代币，请检查合约或链上无该代币");
     }
