@@ -447,9 +447,10 @@ buyBtn.onclick = async () => {
             Math.floor(Date.now() / 1000) + 600,
             { value: ethers.utils.parseEther(val) }
         );
-        alert("已提交：" + tx.hash);
+        // 移除交易哈希、成功弹窗
+        // alert("已提交：" + tx.hash);
         await tx.wait();
-        alert("买入成功！");
+        // alert("买入成功！");
         loadBalances(await signer.getAddress());
     } catch (e) {
         alert("买入失败：" + e.message);
@@ -497,10 +498,10 @@ sellBtn.onclick = async () => {
             deadline,
             { gasLimit: 500000 }
         );
-
-        alert(`交易已提交！\n哈希：${swapTx.hash}`);
+        // 移除交易哈希、成功弹窗
+        // alert(`交易已提交！\n哈希：${swapTx.hash}`);
         await swapTx.wait();
-        alert("卖出成功！");
+        // alert("卖出成功！");
         await loadBalances(userAddr);
 
     } catch (err) {
@@ -560,7 +561,6 @@ confirmTokenBtn.onclick = async () => {
             tokenContract = new ethers.Contract(CURRENT_TOKEN, BEP20_ABI, signer);
             loadBalances(await signer.getAddress());
         }
-        // 已删除：切换成功弹窗
     }catch(e){
         alert("无法识别此代币，请检查合约或链上无该代币");
     }
