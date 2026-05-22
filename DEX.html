@@ -208,6 +208,10 @@ body{
             <label>预估获得 <span id="labelGetToken">代币</span></label>
             <input type="text" id="getToken" placeholder="自动计算" readonly>
         </div>
+        <div class="input-item">
+            <label>滑点设置(空白自动适配)</label>
+            <input type="number" id="buySlippage" placeholder="默认自动值" min="1" max="99">
+        </div>
         <button class="swap-btn" id="buyBtn">确认买入<span id="btnBuySymbol">代币</span></button>
     </div>
 
@@ -217,17 +221,14 @@ body{
             <button class="pct-btn" data-pct="50">50%</button>
             <button class="pct-btn active" data-pct="100">MAX</button>
         </div>
-
+        <div class="input-item">
+            <label>滑点设置(空白自动适配)</label>
+            <input type="number" id="sellSlippage" placeholder="默认自动值" min="1" max="99">
+        </div>
         <div class="input-item">
             <label>卖出 <span id="labelSellToken">代币</span> 数量</label>
             <input type="number" id="payToken" placeholder="输入代币数量" min="0" step="0.0001">
         </div>
-
-        <div class="input-item">
-            <label>滑点设置（建议 25%）</label>
-            <input type="number" id="slippage" value="25" placeholder="滑点%" min="1" max="99">
-        </div>
-
         <div class="input-item">
             <label>预估获得 BNB</label>
             <input type="text" id="getBnb" placeholder="自动计算" readonly>
@@ -267,7 +268,8 @@ const buyTab = document.getElementById("buyTab");
 const sellTab = document.getElementById("sellTab");
 const buyBox = document.getElementById("buyBox");
 const sellBox = document.getElementById("sellBox");
-const slippageInput = document.getElementById("slippage");
+const buySlippage = document.getElementById("buySlippage");
+const sellSlippage = document.getElementById("sellSlippage");
 const tokenSearch = document.getElementById("tokenSearch");
 const confirmTokenBtn = document.getElementById("confirmTokenBtn");
 const currentToken = document.getElementById("currentToken");
@@ -285,6 +287,20 @@ const BEP20_ABI = [
     "function symbol() external view returns (string)",
     "function decimals() external view returns (uint8)"
 ];
+
+// 自动计算适配滑点
+async function getAutoSlippage(tradeVal, isBuy) {
+    let baseSlippage = 6;
+    let path = isBuy ? [WBNB, CURRENT_TOKEN] : [CURRENT_TOKEN, WBNB];
+    const smallRes = await getQuote(0.1, path);
+    const bigRes = await getQuote(parseFloat(tradeVal)||1, path);
+    if(smallRes.ok && bigRes.ok){
+        let diffRatio = Math.abs((parseFloat(smallRes.value) - parseFloat(bigRes.value)) / parseFloat(smallRes.value)) * 100;
+        if(diffRatio > 8) baseSlippage = 15;
+        else if(diffRatio > 4) baseSlippage = 10;
+    }
+    return baseSlippage;
+}
 
 // 全局更新所有代币名称显示
 function updateAllTokenNames(sym) {
@@ -375,6 +391,9 @@ payBnb.oninput = async () => {
     } else {
         getToken.value = parseFloat(res.value).toFixed(4);
     }
+    // 实时回填默认自动滑点
+    let autoSlip = await getAutoSlippage(v,true);
+    buySlippage.placeholder = `默认${autoSlip}%`;
 };
 
 payToken.oninput = async () => {
@@ -386,6 +405,9 @@ payToken.oninput = async () => {
     } else {
         getBnb.value = parseFloat(res.value).toFixed(6);
     }
+    // 实时回填默认自动滑点
+    let autoSlip = await getAutoSlippage(v,false);
+    sellSlippage.placeholder = `默认${autoSlip}%`;
 };
 
 async function loadBalances(addr) {
@@ -436,7 +458,11 @@ buyBtn.onclick = async () => {
         const res = await getQuote(val, [WBNB, CURRENT_TOKEN]);
         if (!res.ok || parseFloat(res.value) <= 0) throw new Error("该代币无流动性，无法买入");
 
-        const slippage = Number(slippageInput.value) || 25;
+        // 手动优先，空值取自动默认
+        let slippage = Number(buySlippage.value);
+        if(isNaN(slippage) || slippage <= 0){
+            slippage = await getAutoSlippage(val, true);
+        }
         const factor = (100 - slippage) / 100;
         const minOut = ethers.utils.parseEther((parseFloat(res.value) * factor).toFixed(6));
 
@@ -447,10 +473,7 @@ buyBtn.onclick = async () => {
             Math.floor(Date.now() / 1000) + 600,
             { value: ethers.utils.parseEther(val) }
         );
-        // 移除交易哈希、成功弹窗
-        // alert("已提交：" + tx.hash);
         await tx.wait();
-        // alert("买入成功！");
         loadBalances(await signer.getAddress());
     } catch (e) {
         alert("买入失败：" + e.message);
@@ -470,7 +493,11 @@ sellBtn.onclick = async () => {
     const val = Number(payToken.value);
     if (!val || val <= 0) return alert("请输入正确的代币数量");
 
-    const slippage = Number(slippageInput.value) || 25;
+    // 手动优先，空值取自动默认
+    let slippage = Number(sellSlippage.value);
+    if(isNaN(slippage) || slippage <= 0){
+        slippage = await getAutoSlippage(val, false);
+    }
     const factor = (100 - slippage) / 100;
 
     sellBtn.innerText = "准备交易...";
@@ -498,17 +525,14 @@ sellBtn.onclick = async () => {
             deadline,
             { gasLimit: 500000 }
         );
-        // 移除交易哈希、成功弹窗
-        // alert(`交易已提交！\n哈希：${swapTx.hash}`);
         await swapTx.wait();
-        // alert("卖出成功！");
         await loadBalances(userAddr);
 
     } catch (err) {
         console.error(err);
         let msg = "卖出失败";
         if (err.message.includes("user rejected")) msg = "已取消交易";
-        if (err.message.includes("INSUFFICIENT_OUTPUT_AMOUNT")) msg = "滑点不足，请调高滑点（建议25%~30%）";
+        if (err.message.includes("INSUFFICIENT_OUTPUT_AMOUNT")) msg = "滑点不足，请手动调高滑点";
         alert(msg);
     } finally {
         let sym = "代币";
@@ -536,6 +560,8 @@ document.querySelectorAll(".pct-btn").forEach(btn => {
         payToken.value = val.toFixed(4);
         let qres = await getQuote(val, [CURRENT_TOKEN, WBNB]);
         getBnb.value = (qres.ok && parseFloat(qres.value) > 0) ? parseFloat(qres.value).toFixed(6) : "无价格";
+        let autoSlip = await getAutoSlippage(val,false);
+        sellSlippage.placeholder = `默认${autoSlip}%`;
     }
 });
 
@@ -554,6 +580,8 @@ confirmTokenBtn.onclick = async () => {
         getToken.value = "";
         payToken.value = "";
         getBnb.value = "";
+        buySlippage.placeholder = "默认自动值";
+        sellSlippage.placeholder = "默认自动值";
 
         updateAllTokenNames(sym);
         refreshPrice();
