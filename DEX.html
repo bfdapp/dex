@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
 <title>BF 双向链上兑换</title>
 <link rel="icon" href="favicon.ico">
-<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
 body{
-    background:#0b1022;
+    background:#0b1224;
     padding:25px 16px;
     font-family:Microsoft Yahei,sans-serif;
 }
@@ -138,15 +138,15 @@ body{
     color:#fff;
 }
 .token-search-box{
-    display:flex;
-    gap:10px;
-    align-items:center;
     background:#161e33;
     border-radius:10px;
     padding:12px 14px;
     margin-bottom:12px;
     color:#fff;
     border:1px solid #27c707;
+    display:flex;
+    gap:10px;
+    align-items:center;
 }
 .token-search-input{
     flex:1;
@@ -286,6 +286,7 @@ const BEP20_ABI = [
     "function decimals() external view returns (uint8)"
 ];
 
+// 全局更新所有代币名称显示
 function updateAllTokenNames(sym) {
     document.getElementById("topSymbol").innerText = sym;
     document.getElementById("balanceSymbol").innerText = sym;
@@ -537,7 +538,6 @@ document.querySelectorAll(".pct-btn").forEach(btn => {
     }
 });
 
-// 保留确认按钮，移除切换成功弹窗
 confirmTokenBtn.onclick = async () => {
     let addr = tokenSearch.value.trim();
     if(!addr.startsWith("0x") || addr.length !== 42) return alert("合约地址格式错误");
@@ -560,6 +560,7 @@ confirmTokenBtn.onclick = async () => {
             tokenContract = new ethers.Contract(CURRENT_TOKEN, BEP20_ABI, signer);
             loadBalances(await signer.getAddress());
         }
+        // 已删除：切换成功弹窗
     }catch(e){
         alert("无法识别此代币，请检查合约或链上无该代币");
     }
