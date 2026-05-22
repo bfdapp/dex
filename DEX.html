@@ -336,10 +336,17 @@ async function getQuote(amountIn, path) {
 async function refreshPrice() {
     try {
         const res = await getQuote(1, [WBNB, CURRENT_TOKEN]);
+        let p = new ethers.providers.JsonRpcProvider(RPC_LIST[0]);
+        let sym = "代币";
+        try {
+            let c = new ethers.Contract(CURRENT_TOKEN, BEP20_ABI, p);
+            sym = await c.symbol();
+        }catch(e){}
+
         if (!res.ok || parseFloat(res.value) <= 0) {
             realPrice.innerText = "实时价格：无流动性或无效代币";
         } else {
-            realPrice.innerText = `实时价格：1 BNB = ${parseFloat(res.value).toFixed(4)} 代币`;
+            realPrice.innerText = `实时价格：1 BNB = ${parseFloat(res.value).toFixed(4)} ${sym}`;
         }
     } catch(e) {
         realPrice.innerText = "实时价格：获取失败";
@@ -502,7 +509,6 @@ document.querySelectorAll(".pct-btn").forEach(btn => {
     }
 });
 
-// 改为点击确认按钮才切换代币
 confirmTokenBtn.onclick = async () => {
     let addr = tokenSearch.value.trim();
     if(!addr.startsWith("0x") || addr.length !== 42) return alert("合约地址格式错误");
@@ -530,7 +536,6 @@ confirmTokenBtn.onclick = async () => {
     }
 };
 
-// 页面加载自动刷一次
 refreshPrice();
 </script>
 </body>
