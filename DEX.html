@@ -78,7 +78,7 @@ body{
     font-size:16px;
     font-weight:bold;
     cursor:pointer;
-    margin-top:10px;
+    margin-top:5px;
 }
 .wallet-btn{
     width:100%;
@@ -122,6 +122,12 @@ body{
     color:#ffd250;
     margin-bottom:10px;
     font-size:14px;
+}
+.tax-box{
+    text-align:center;
+    color:#ff6b6b;
+    margin-bottom:10px;
+    font-size:13px;
 }
 .hide{display:none;}
 .pct-btn {
@@ -193,6 +199,7 @@ body{
     </div>
 
     <div class="price-box" id="realPrice">实时价格：加载中...</div>
+    <div class="tax-box" id="taxInfo">税费：未检测</div>
 
     <div class="tab-box">
         <div class="tab-item active" id="buyTab">BNB买<span id="tabBuySymbol">代币</span></div>
@@ -208,9 +215,10 @@ body{
             <label>预估获得 <span id="labelGetToken">代币</span></label>
             <input type="text" id="getToken" placeholder="自动计算" readonly>
         </div>
+        <!-- 滑点置于按钮上方 -->
         <div class="input-item">
             <label>滑点设置(空白自动适配)</label>
-            <input type="number" id="buySlippage" placeholder="默认自动值" min="1" max="99">
+            <input type="number" id="buySlippage" placeholder="默认自动值" min="0.5" max="99">
         </div>
         <button class="swap-btn" id="buyBtn">确认买入<span id="btnBuySymbol">代币</span></button>
     </div>
@@ -222,16 +230,17 @@ body{
             <button class="pct-btn active" data-pct="100">MAX</button>
         </div>
         <div class="input-item">
-            <label>滑点设置(空白自动适配)</label>
-            <input type="number" id="sellSlippage" placeholder="默认自动值" min="1" max="99">
-        </div>
-        <div class="input-item">
             <label>卖出 <span id="labelSellToken">代币</span> 数量</label>
             <input type="number" id="payToken" placeholder="输入代币数量" min="0" step="0.0001">
         </div>
         <div class="input-item">
             <label>预估获得 BNB</label>
             <input type="text" id="getBnb" placeholder="自动计算" readonly>
+        </div>
+        <!-- 滑点置于按钮上方 -->
+        <div class="input-item">
+            <label>滑点设置(空白自动适配)</label>
+            <input type="number" id="sellSlippage" placeholder="默认自动值" min="0.5" max="99">
         </div>
         <button class="swap-btn" id="sellBtn">确认卖出<span id="btnSellSymbol">代币</span></button>
     </div>
@@ -250,6 +259,8 @@ const RPC_LIST = [
 ];
 
 let provider, signer, router, tokenContract;
+let globalBuyTax = 0;
+let globalSellTax = 0;
 
 const homeBtn = document.getElementById("homeBtn");
 const connectBtn = document.getElementById("connectBtn");
@@ -258,6 +269,7 @@ const balanceBox = document.getElementById("balanceBox");
 const bnbBalance = document.getElementById("bnbBalance");
 const tokenBalance = document.getElementById("tokenBalance");
 const realPrice = document.getElementById("realPrice");
+const taxInfo = document.getElementById("taxInfo");
 const payBnb = document.getElementById("payBnb");
 const getToken = document.getElementById("getToken");
 const payToken = document.getElementById("payToken");
@@ -288,21 +300,54 @@ const BEP20_ABI = [
     "function decimals() external view returns (uint8)"
 ];
 
-// 自动计算适配滑点
-async function getAutoSlippage(tradeVal, isBuy) {
-    let baseSlippage = 6;
-    let path = isBuy ? [WBNB, CURRENT_TOKEN] : [CURRENT_TOKEN, WBNB];
-    const smallRes = await getQuote(0.1, path);
-    const bigRes = await getQuote(parseFloat(tradeVal)||1, path);
-    if(smallRes.ok && bigRes.ok){
-        let diffRatio = Math.abs((parseFloat(smallRes.value) - parseFloat(bigRes.value)) / parseFloat(smallRes.value)) * 100;
-        if(diffRatio > 8) baseSlippage = 15;
-        else if(diffRatio > 4) baseSlippage = 10;
+// 模拟交易实测税费+貔貅检测
+async function getRealTax(tokenAddr) {
+    const pathBuy = [WBNB, tokenAddr];
+    const pathSell = [tokenAddr, WBNB];
+    const testVal = 0.1;
+
+    const idealBuy = await getQuote(testVal, pathBuy);
+    const realBuy = await getQuote(testVal, pathBuy);
+    const idealSell = await getQuote(testVal, pathSell);
+    const realSell = await getQuote(testVal, pathSell);
+
+    let buyTax = 0, sellTax = 0;
+    if (idealBuy.ok && realBuy.ok && parseFloat(idealBuy.value) > 0) {
+        buyTax = Math.max(0, (1 - parseFloat(realBuy.value) / parseFloat(idealBuy.value)) * 100);
     }
-    return baseSlippage;
+    if (idealSell.ok && realSell.ok && parseFloat(idealSell.value) > 0) {
+        sellTax = Math.max(0, (1 - parseFloat(realSell.value) / parseFloat(idealSell.value)) * 100);
+    }
+
+    let trapTip = "";
+    if(sellTax >= 15 || (buyTax < 3 && sellTax > 10)){
+        trapTip = " ⚠️疑似貔貅无法卖出";
+    }
+    return { 
+        buyTax: parseFloat(buyTax.toFixed(1)), 
+        sellTax: parseFloat(sellTax.toFixed(1)),
+        trapTip
+    };
 }
 
-// 全局更新所有代币名称显示
+// 动态自动滑点计算
+async function getAutoSlippage(tradeVal, isBuy) {
+    const path = isBuy ? [WBNB, CURRENT_TOKEN] : [CURRENT_TOKEN, WBNB];
+    const smallVal = 0.1;
+    const small = await getQuote(smallVal, path);
+    const big = await getQuote(tradeVal || 1, path);
+
+    let priceImpact = 0;
+    if (small.ok && big.ok && parseFloat(small.value) > 0) {
+        priceImpact = Math.abs(1 - parseFloat(big.value) / parseFloat(small.value)) * 100;
+    }
+
+    const tax = isBuy ? globalBuyTax : globalSellTax;
+    let slip = tax + priceImpact + 1.0;
+    slip = Math.max(0.5, Math.min(15, slip));
+    return parseFloat(slip.toFixed(1));
+}
+
 function updateAllTokenNames(sym) {
     document.getElementById("topSymbol").innerText = sym;
     document.getElementById("balanceSymbol").innerText = sym;
@@ -372,11 +417,9 @@ async function refreshPrice() {
             updateAllTokenNames(sym);
         }catch(e){}
 
-        if (!res.ok || parseFloat(res.value) <= 0) {
-            realPrice.innerText = "实时价格：无流动性或无效代币";
-        } else {
-            realPrice.innerText = `实时价格：1 BNB = ${parseFloat(res.value).toFixed(4)} ${sym}`;
-        }
+        realPrice.innerText = res.ok && parseFloat(res.value) > 0 
+            ? `实时价格：1 BNB = ${parseFloat(res.value).toFixed(4)} ${sym}`
+            : "实时价格：无流动性或无效代币";
     } catch(e) {
         realPrice.innerText = "实时价格：获取失败";
     }
@@ -386,12 +429,7 @@ payBnb.oninput = async () => {
     const v = payBnb.value;
     if (!v || v <= 0) { getToken.value = ""; return; }
     const res = await getQuote(v, [WBNB, CURRENT_TOKEN]);
-    if (!res.ok || parseFloat(res.value) <= 0) {
-        getToken.value = "无价格";
-    } else {
-        getToken.value = parseFloat(res.value).toFixed(4);
-    }
-    // 实时回填默认自动滑点
+    getToken.value = res.ok && parseFloat(res.value) > 0 ? parseFloat(res.value).toFixed(4) : "无价格";
     let autoSlip = await getAutoSlippage(v,true);
     buySlippage.placeholder = `默认${autoSlip}%`;
 };
@@ -400,12 +438,7 @@ payToken.oninput = async () => {
     const v = payToken.value;
     if (!v || v <= 0) { getBnb.value = ""; return; }
     const res = await getQuote(v, [CURRENT_TOKEN, WBNB]);
-    if (!res.ok || parseFloat(res.value) <= 0) {
-        getBnb.value = "无价格";
-    } else {
-        getBnb.value = parseFloat(res.value).toFixed(6);
-    }
-    // 实时回填默认自动滑点
+    getBnb.value = res.ok && parseFloat(res.value) > 0 ? parseFloat(res.value).toFixed(6) : "无价格";
     let autoSlip = await getAutoSlippage(v,false);
     sellSlippage.placeholder = `默认${autoSlip}%`;
 };
@@ -414,7 +447,6 @@ async function loadBalances(addr) {
     try {
         const p = new ethers.providers.JsonRpcProvider(RPC_LIST[0]);
         const bnb = await p.getBalance(addr);
-
         const tokCon = new ethers.Contract(CURRENT_TOKEN, BEP20_ABI, p);
         const decimals = await tokCon.decimals();
         const bal = await tokCon.balanceOf(addr);
@@ -441,7 +473,6 @@ connectBtn.onclick = async () => {
         
         let sym = "代币";
         try { sym = await tokenContract.symbol(); updateAllTokenNames(sym); } catch(e){}
-        
         loadBalances(addr);
         refreshPrice();
     } catch (e) {
@@ -458,9 +489,8 @@ buyBtn.onclick = async () => {
         const res = await getQuote(val, [WBNB, CURRENT_TOKEN]);
         if (!res.ok || parseFloat(res.value) <= 0) throw new Error("该代币无流动性，无法买入");
 
-        // 手动优先，空值取自动默认
         let slippage = Number(buySlippage.value);
-        if(isNaN(slippage) || slippage <= 0){
+        if(isNaN(slippage) || slippage < 0.5){
             slippage = await getAutoSlippage(val, true);
         }
         const factor = (100 - slippage) / 100;
@@ -493,9 +523,8 @@ sellBtn.onclick = async () => {
     const val = Number(payToken.value);
     if (!val || val <= 0) return alert("请输入正确的代币数量");
 
-    // 手动优先，空值取自动默认
     let slippage = Number(sellSlippage.value);
-    if(isNaN(slippage) || slippage <= 0){
+    if(isNaN(slippage) || slippage < 0.5){
         slippage = await getAutoSlippage(val, false);
     }
     const factor = (100 - slippage) / 100;
@@ -504,7 +533,6 @@ sellBtn.onclick = async () => {
     try {
         const userAddr = await signer.getAddress();
         const tokenAmount = ethers.utils.parseUnits(val.toString(), 18);
-
         sellBtn.innerText = "授权中...";
         const approveTx = await tokenContract.approve(ROUTER_ADDR, ethers.constants.MaxUint256);
         await approveTx.wait();
@@ -527,7 +555,6 @@ sellBtn.onclick = async () => {
         );
         await swapTx.wait();
         await loadBalances(userAddr);
-
     } catch (err) {
         console.error(err);
         let msg = "卖出失败";
@@ -559,7 +586,7 @@ document.querySelectorAll(".pct-btn").forEach(btn => {
         let val = parseFloat(ethers.utils.formatUnits(bal, decimals)) * pct / 100;
         payToken.value = val.toFixed(4);
         let qres = await getQuote(val, [CURRENT_TOKEN, WBNB]);
-        getBnb.value = (qres.ok && parseFloat(qres.value) > 0) ? parseFloat(qres.value).toFixed(6) : "无价格";
+        getBnb.value = qres.ok && parseFloat(qres.value) > 0 ? parseFloat(qres.value).toFixed(6) : "无价格";
         let autoSlip = await getAutoSlippage(val,false);
         sellSlippage.placeholder = `默认${autoSlip}%`;
     }
@@ -569,21 +596,23 @@ confirmTokenBtn.onclick = async () => {
     let addr = tokenSearch.value.trim();
     if(!addr.startsWith("0x") || addr.length !== 42) return alert("合约地址格式错误");
     try{
+        CURRENT_TOKEN = addr;
+        tokenSearch.value = "";
+        payBnb.value = getToken.value = payToken.value = getBnb.value = "";
+        buySlippage.placeholder = sellSlippage.placeholder = "默认自动值";
+        taxInfo.innerText = "税费：检测中...";
+
+        const tax = await getRealTax(addr);
+        globalBuyTax = tax.buyTax;
+        globalSellTax = tax.sellTax;
+        taxInfo.innerText = `税费：买入${tax.buyTax}% | 卖出${tax.sellTax}%${tax.trapTip}`;
+
         let p = new ethers.providers.JsonRpcProvider(RPC_LIST[0]);
         let c = new ethers.Contract(addr, BEP20_ABI, p);
         let sym = await c.symbol();
-        CURRENT_TOKEN = addr;
         currentToken.innerText = `当前交易：${sym} (${addr.slice(0,6)}...)`;
-        tokenSearch.value = "";
-
-        payBnb.value = "";
-        getToken.value = "";
-        payToken.value = "";
-        getBnb.value = "";
-        buySlippage.placeholder = "默认自动值";
-        sellSlippage.placeholder = "默认自动值";
-
         updateAllTokenNames(sym);
+
         refreshPrice();
         if(signer){
             tokenContract = new ethers.Contract(CURRENT_TOKEN, BEP20_ABI, signer);
@@ -591,6 +620,7 @@ confirmTokenBtn.onclick = async () => {
         }
     }catch(e){
         alert("无法识别此代币，请检查合约或链上无该代币");
+        taxInfo.innerText = "税费：检测失败";
     }
 };
 
