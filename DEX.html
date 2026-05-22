@@ -144,27 +144,14 @@ body{
     margin-bottom:12px;
     color:#fff;
     border:1px solid #27c707;
-    display:flex;
-    gap:10px;
-    align-items:center;
 }
 .token-search-input{
-    flex:1;
+    width:100%;
     background:transparent;
     border:none;
     color:#fff;
     outline:none;
     font-size:14px;
-}
-.token-confirm-btn{
-    padding:8px 12px;
-    border-radius:8px;
-    border:none;
-    background:#27c707;
-    color:#fff;
-    font-size:14px;
-    cursor:pointer;
-    white-space:nowrap;
 }
 .current-token{
     color:#27c707;
@@ -182,8 +169,7 @@ body{
     <div class="status" id="walletStatus">未连接钱包</div>
 
     <div class="token-search-box">
-        <input class="token-search-input" id="tokenSearch" placeholder="粘贴代币合约地址">
-        <button class="token-confirm-btn" id="confirmTokenBtn">确认</button>
+        <input class="token-search-input" id="tokenSearch" placeholder="粘贴代币合约地址，自动切换">
     </div>
     <div class="current-token" id="currentToken">当前交易：BF</div>
 
@@ -269,7 +255,6 @@ const buyBox = document.getElementById("buyBox");
 const sellBox = document.getElementById("sellBox");
 const slippageInput = document.getElementById("slippage");
 const tokenSearch = document.getElementById("tokenSearch");
-const confirmTokenBtn = document.getElementById("confirmTokenBtn");
 const currentToken = document.getElementById("currentToken");
 
 const ROUTER_ABI = [
@@ -286,7 +271,6 @@ const BEP20_ABI = [
     "function decimals() external view returns (uint8)"
 ];
 
-// 全局更新所有代币名称显示
 function updateAllTokenNames(sym) {
     document.getElementById("topSymbol").innerText = sym;
     document.getElementById("balanceSymbol").innerText = sym;
@@ -538,7 +522,8 @@ document.querySelectorAll(".pct-btn").forEach(btn => {
     }
 });
 
-confirmTokenBtn.onclick = async () => {
+// 粘贴完自动切换，不用点确认
+tokenSearch.onchange = async () => {
     let addr = tokenSearch.value.trim();
     if(!addr.startsWith("0x") || addr.length !== 42) return alert("合约地址格式错误");
     try{
